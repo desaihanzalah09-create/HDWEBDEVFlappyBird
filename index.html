@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flappy Bird Premium</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="game-container">
+    <div class="hud">
+      <div class="hud-pill">BEST <span id="hudBestScore">0</span></div>
+      <button id="quickRetryBtn" class="icon-btn retry-btn hidden" aria-label="Retry">↻</button>
+    </div>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Sound Toggle -->
+    <button id="audioToggleBtn" class="icon-btn" aria-label="Toggle Audio">
+      🔊
+    </button>
+
+    <!-- Start Overlay -->
+    <div id="startOverlay" class="overlay">
+      <div class="glass-card">
+        <h1 class="game-title">FLAPPY<span>BIRD</span></h1>
+        <p class="subtitle">Press <kbd>Space</kbd> or <kbd>Tap</kbd> to Flap</p>
+        <button id="startBtn" class="btn primary-btn">PLAY GAME</button>
+      </div>
+    </div>
+
+    <!-- Game Over Overlay -->
+    <div id="gameOverOverlay" class="overlay hidden">
+      <div class="glass-card">
+        <h2 class="danger-title">GAME OVER</h2>
+        
+        <div class="score-board">
+          <div class="medal-slot" id="medalSlot">🥉</div>
+          <div class="score-details">
+            <div class="score-row">
+              <span>Score</span>
+              <span id="finalScore" class="highlight">0</span>
+            </div>
+            <div class="score-row">
+              <span>Best</span>
+              <span id="bestScore" class="highlight">0</span>
+            </div>
+          </div>
+        </div>
+
+        <button id="restartBtn" class="btn primary-btn">TRY AGAIN</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
