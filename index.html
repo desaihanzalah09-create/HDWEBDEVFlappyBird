@@ -27,8 +27,19 @@
     <!-- Start Overlay -->
     <div id="startOverlay" class="overlay">
       <div class="glass-card">
+        <div class="premium-badge">Premium Flight</div>
         <h1 class="game-title">FLAPPY<span>BIRD</span></h1>
         <p class="subtitle">Press <kbd>Space</kbd> or <kbd>Tap</kbd> to Flap</p>
+        <div class="choice-panel" aria-label="Game options">
+          <div class="choice-group">
+            <div class="choice-heading">Choose Bird</div>
+            <div id="birdChoices" class="choice-grid bird-grid"></div>
+          </div>
+          <div class="choice-group">
+            <div class="choice-heading">Choose Map</div>
+            <div id="mapChoices" class="choice-grid map-grid"></div>
+          </div>
+        </div>
         <button id="startBtn" class="btn primary-btn">PLAY GAME</button>
       </div>
     </div>
@@ -52,7 +63,10 @@
           </div>
         </div>
 
-        <button id="restartBtn" class="btn primary-btn">TRY AGAIN</button>
+        <div class="game-over-actions">
+          <button id="restartBtn" class="btn primary-btn">TRY AGAIN</button>
+          <button id="homeBtn" class="btn secondary-btn">GO HOME</button>
+        </div>
       </div>
     </div>
   </div>

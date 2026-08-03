@@ -124,14 +124,18 @@ canvas {
 }
 
 .glass-card {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.055));
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.055)),
+    radial-gradient(circle at 18% 12%, rgba(56, 189, 248, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 8%, rgba(251, 191, 36, 0.16), transparent 30%);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   padding: clamp(28px, 5vw, 48px) clamp(22px, 4vw, 38px);
   border-radius: 18px;
   text-align: center;
-  width: min(420px, calc(100vw - 32px));
-  overflow: hidden;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  box-shadow: 0 36px 90px rgba(0, 0, 0, 0.5), 0 0 46px rgba(56, 189, 248, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -154,10 +158,27 @@ canvas {
   text-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
 }
 
+.premium-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.42);
+  background: rgba(251, 191, 36, 0.13);
+  color: #fde68a;
+  box-shadow: 0 0 26px rgba(251, 191, 36, 0.16);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .subtitle {
   font-size: 15px;
   color: rgba(226, 232, 240, 0.78);
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 
 kbd {
@@ -186,6 +207,11 @@ kbd {
   padding: 16px;
   border-radius: 12px;
   margin-bottom: 24px;
+}
+
+.game-over-actions {
+  display: grid;
+  gap: 10px;
 }
 
 .medal-slot {
@@ -233,9 +259,96 @@ kbd {
   box-shadow: 0 8px 20px rgba(56, 189, 248, 0.3);
 }
 
+.secondary-btn {
+  background: rgba(8, 17, 29, 0.48);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.choice-panel {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 22px;
+  text-align: left;
+}
+
+.choice-heading {
+  margin-bottom: 8px;
+  color: rgba(226, 232, 240, 0.82);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.choice-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.bird-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.map-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.choice-card {
+  min-height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.72), rgba(8, 17, 29, 0.42));
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.choice-card:hover,
+.choice-card.active {
+  border-color: rgba(56, 189, 248, 0.82);
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.28), rgba(8, 17, 29, 0.52));
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.bird-token {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  box-shadow: 0 0 18px var(--token-glow);
+  background: linear-gradient(135deg, var(--token-a), var(--token-b) 58%, var(--token-c));
+}
+
+.map-token {
+  width: 34px;
+  height: 28px;
+  border-radius: 7px;
+  box-shadow: inset 0 -9px 0 rgba(0, 0, 0, 0.18), 0 0 16px var(--token-glow);
+  background: linear-gradient(180deg, var(--token-a), var(--token-b) 66%, var(--token-c));
+}
+
+.choice-label {
+  font-size: 12px;
+  line-height: 1;
+}
+
 .primary-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 25px rgba(56, 189, 248, 0.4);
+}
+
+.secondary-btn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(251, 191, 36, 0.42);
+  box-shadow: 0 12px 25px rgba(251, 191, 36, 0.13);
 }
 
 .primary-btn:active {
@@ -244,4 +357,19 @@ kbd {
 
 .hidden {
   display: none;
+}
+
+@media (max-width: 430px) {
+  .glass-card {
+    padding: 24px 16px;
+  }
+
+  .choice-card {
+    min-height: 52px;
+    gap: 6px;
+  }
+
+  .bird-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

@@ -74,8 +74,11 @@ const startOverlay = document.getElementById('startOverlay');
 const gameOverOverlay = document.getElementById('gameOverOverlay');
 const startBtn = document.getElementById('startBtn');
 const restartBtn = document.getElementById('restartBtn');
+const homeBtn = document.getElementById('homeBtn');
 const quickRetryBtn = document.getElementById('quickRetryBtn');
 const audioToggleBtn = document.getElementById('audioToggleBtn');
+const birdChoicesEl = document.getElementById('birdChoices');
+const mapChoicesEl = document.getElementById('mapChoices');
 const finalScoreEl = document.getElementById('finalScore');
 const bestScoreEl = document.getElementById('bestScore');
 const hudBestScoreEl = document.getElementById('hudBestScore');
@@ -94,6 +97,135 @@ let worldSpeed = 2.5;
 let pipeGap = 150;
 
 hudBestScoreEl.textContent = highScore;
+
+const BIRD_SKINS = [
+  {
+    id: 'sky',
+    name: 'Sky',
+    colors: ['#38bdf8', '#22d3ee', '#f59e0b'],
+    wing: '#bae6fd',
+    beak: '#f59e0b',
+    glow: '#38bdf8',
+    trail: '#38bdf8'
+  },
+  {
+    id: 'red',
+    name: 'Red',
+    colors: ['#fb7185', '#ef4444', '#f97316'],
+    wing: '#fecdd3',
+    beak: '#fbbf24',
+    glow: '#fb7185',
+    trail: '#fb7185'
+  },
+  {
+    id: 'lime',
+    name: 'Lime',
+    colors: ['#bef264', '#22c55e', '#14b8a6'],
+    wing: '#dcfce7',
+    beak: '#fde047',
+    glow: '#84cc16',
+    trail: '#a3e635'
+  },
+  {
+    id: 'violet',
+    name: 'Nova',
+    colors: ['#c4b5fd', '#8b5cf6', '#06b6d4'],
+    wing: '#ddd6fe',
+    beak: '#f472b6',
+    glow: '#a78bfa',
+    trail: '#c084fc'
+  },
+  {
+    id: 'gold',
+    name: 'Gold',
+    colors: ['#fde68a', '#f59e0b', '#f97316'],
+    wing: '#fef3c7',
+    beak: '#fb923c',
+    glow: '#fbbf24',
+    trail: '#facc15'
+  },
+  {
+    id: 'midnight',
+    name: 'Shadow',
+    colors: ['#94a3b8', '#334155', '#020617'],
+    wing: '#cbd5e1',
+    beak: '#38bdf8',
+    glow: '#64748b',
+    trail: '#94a3b8'
+  },
+  {
+    id: 'rose',
+    name: 'Rose',
+    colors: ['#f9a8d4', '#ec4899', '#fb7185'],
+    wing: '#fce7f3',
+    beak: '#fbbf24',
+    glow: '#f472b6',
+    trail: '#fb7185'
+  },
+  {
+    id: 'ember',
+    name: 'Ember',
+    colors: ['#fed7aa', '#f97316', '#7f1d1d'],
+    wing: '#ffedd5',
+    beak: '#fde047',
+    glow: '#fb923c',
+    trail: '#f97316'
+  }
+];
+
+const MAP_THEMES = [
+  {
+    id: 'neon',
+    name: 'Neon',
+    sky: ['#07111f', '#12304b', '#0b1724'],
+    star: '#bae6fd',
+    cloud: '#e0f2fe',
+    ground: ['rgba(20, 184, 166, 0.08)', 'rgba(245, 158, 11, 0.28)'],
+    pipe: ['#059669', '#34d399', '#047857', '#6ee7b7'],
+    ridge: '#0f766e'
+  },
+  {
+    id: 'canyon',
+    name: 'Canyon',
+    sky: ['#35140f', '#be5b2c', '#f7b267'],
+    star: '#fff7ed',
+    cloud: '#fed7aa',
+    ground: ['rgba(120, 53, 15, 0.18)', 'rgba(154, 52, 18, 0.52)'],
+    pipe: ['#b45309', '#f59e0b', '#92400e', '#fed7aa'],
+    ridge: '#7c2d12'
+  },
+  {
+    id: 'glacier',
+    name: 'Glacier',
+    sky: ['#062236', '#0e7490', '#cffafe'],
+    star: '#ecfeff',
+    cloud: '#f0f9ff',
+    ground: ['rgba(186, 230, 253, 0.18)', 'rgba(14, 116, 144, 0.34)'],
+    pipe: ['#0891b2', '#67e8f9', '#0e7490', '#cffafe'],
+    ridge: '#155e75'
+  },
+  {
+    id: 'jungle',
+    name: 'Jungle',
+    sky: ['#052e16', '#166534', '#84cc16'],
+    star: '#dcfce7',
+    cloud: '#bbf7d0',
+    ground: ['rgba(21, 128, 61, 0.18)', 'rgba(63, 98, 18, 0.48)'],
+    pipe: ['#365314', '#84cc16', '#1a2e05', '#bef264'],
+    ridge: '#14532d'
+  }
+];
+
+let selectedBirdId = localStorage.getItem('flappy_selected_bird') || 'sky';
+let selectedMapId = localStorage.getItem('flappy_selected_map') || 'neon';
+
+function getSelectedBird() {
+  return BIRD_SKINS.find(skin => skin.id === selectedBirdId) || BIRD_SKINS[0];
+}
+
+function getSelectedMap() {
+  return MAP_THEMES.find(theme => theme.id === selectedMapId) || MAP_THEMES[0];
+}
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -122,7 +254,7 @@ const bird = {
   flap() {
     this.velocity = this.jump;
     sound.playJump();
-    createParticles(this.x - this.radius, this.y + 4, 10, '#38bdf8', 1.2);
+    createParticles(this.x - this.radius, this.y + 4, 10, getSelectedBird().trail, 1.2);
   },
   update() {
     this.velocity += this.gravity;
@@ -136,16 +268,17 @@ const bird = {
     }
   },
   draw() {
+    const skin = getSelectedBird();
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
 
     // Glow Effect
     ctx.shadowBlur = 18;
-    ctx.shadowColor = '#38bdf8';
+    ctx.shadowColor = skin.glow;
 
     ctx.globalAlpha = 0.26;
-    ctx.fillStyle = '#38bdf8';
+    ctx.fillStyle = skin.glow;
     ctx.beginPath();
     ctx.ellipse(-10, 2, this.radius * 1.9, this.radius * 0.9, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -153,14 +286,21 @@ const bird = {
 
     // Body Gradient
     const grad = ctx.createLinearGradient(-this.radius, -this.radius, this.radius, this.radius);
-    grad.addColorStop(0, '#38bdf8');
-    grad.addColorStop(0.5, '#22d3ee');
-    grad.addColorStop(1, '#f59e0b');
+    grad.addColorStop(0, skin.colors[0]);
+    grad.addColorStop(0.5, skin.colors[1]);
+    grad.addColorStop(1, skin.colors[2]);
 
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.fillStyle = skin.wing;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.ellipse(-this.radius * 0.35, this.radius * 0.16, this.radius * 0.5, this.radius * 0.28, -0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     // Eye
     ctx.fillStyle = '#ffffff';
@@ -174,7 +314,7 @@ const bird = {
     ctx.fill();
 
     // Beak
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = skin.beak;
     ctx.beginPath();
     ctx.moveTo(this.radius * 0.72, this.radius * 0.15);
     ctx.lineTo(this.radius * 1.45, this.radius * 0.32);
@@ -239,21 +379,22 @@ function updatePipes() {
 }
 
 function drawPipes() {
+  const theme = getSelectedMap();
   pipes.forEach(p => {
     const capHeight = Math.max(16, p.width * 0.26);
     // Top Pipe
     const topGrad = ctx.createLinearGradient(p.x, 0, p.x + p.width, 0);
-    topGrad.addColorStop(0, '#059669');
-    topGrad.addColorStop(0.5, '#34d399');
-    topGrad.addColorStop(1, '#047857');
+    topGrad.addColorStop(0, theme.pipe[0]);
+    topGrad.addColorStop(0.5, theme.pipe[1]);
+    topGrad.addColorStop(1, theme.pipe[2]);
 
     ctx.shadowBlur = 16;
-    ctx.shadowColor = 'rgba(16, 185, 129, 0.38)';
+    ctx.shadowColor = theme.pipe[1];
     ctx.fillStyle = topGrad;
     roundRect(p.x, -8, p.width, p.topHeight + 8, 10);
 
     // Pipe Caps
-    ctx.fillStyle = '#6ee7b7';
+    ctx.fillStyle = theme.pipe[3];
     roundRect(p.x - 5, p.topHeight - capHeight, p.width + 10, capHeight, 8);
 
     // Bottom Pipe
@@ -261,7 +402,7 @@ function drawPipes() {
     ctx.fillStyle = topGrad;
     roundRect(p.x, p.bottomY, p.width, bottomHeight + 8, 10);
 
-    ctx.fillStyle = '#34d399';
+    ctx.fillStyle = theme.pipe[1];
     roundRect(p.x - 5, p.bottomY, p.width + 10, capHeight, 8);
     ctx.shadowBlur = 0;
   });
@@ -336,12 +477,15 @@ const clouds = Array.from({ length: 8 }, () => ({
 }));
 
 function drawBackground() {
+  const theme = getSelectedMap();
   const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  sky.addColorStop(0, '#07111f');
-  sky.addColorStop(0.52, '#12304b');
-  sky.addColorStop(1, '#0b1724');
+  sky.addColorStop(0, theme.sky[0]);
+  sky.addColorStop(0.52, theme.sky[1]);
+  sky.addColorStop(1, theme.sky[2]);
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawMapLandmarks(theme);
 
   clouds.forEach(cloud => {
     if (currentState === STATE.PLAYING) {
@@ -353,7 +497,7 @@ function drawBackground() {
     }
     ctx.save();
     ctx.globalAlpha = cloud.alpha;
-    ctx.fillStyle = '#e0f2fe';
+    ctx.fillStyle = theme.cloud;
     ctx.beginPath();
     ctx.ellipse(cloud.x, cloud.y, cloud.width, cloud.width * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -369,7 +513,7 @@ function drawBackground() {
       }
     }
     ctx.globalAlpha = star.alpha + Math.sin((frameCount + star.x) * 0.025) * 0.15;
-    ctx.fillStyle = '#bae6fd';
+    ctx.fillStyle = theme.star;
     ctx.beginPath();
     ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
     ctx.fill();
@@ -378,10 +522,60 @@ function drawBackground() {
 
   const groundHeight = Math.max(78, canvas.height * 0.12);
   const ground = ctx.createLinearGradient(0, canvas.height - groundHeight, 0, canvas.height);
-  ground.addColorStop(0, 'rgba(20, 184, 166, 0.08)');
-  ground.addColorStop(1, 'rgba(245, 158, 11, 0.28)');
+  ground.addColorStop(0, theme.ground[0]);
+  ground.addColorStop(1, theme.ground[1]);
   ctx.fillStyle = ground;
   ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+}
+
+function drawMapLandmarks(theme) {
+  const horizon = canvas.height * 0.72;
+  const offset = currentState === STATE.PLAYING ? (frameCount * worldSpeed * 0.22) % 220 : 0;
+
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.fillStyle = theme.ridge;
+
+  if (theme.id === 'canyon') {
+    for (let x = -260 - offset; x < canvas.width + 260; x += 220) {
+      ctx.beginPath();
+      ctx.moveTo(x, canvas.height);
+      ctx.lineTo(x + 38, horizon - 48);
+      ctx.lineTo(x + 76, horizon - 72);
+      ctx.lineTo(x + 128, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (theme.id === 'glacier') {
+    for (let x = -220 - offset; x < canvas.width + 220; x += 180) {
+      ctx.beginPath();
+      ctx.moveTo(x, canvas.height);
+      ctx.lineTo(x + 84, horizon - 112);
+      ctx.lineTo(x + 168, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (theme.id === 'jungle') {
+    for (let x = -180 - offset; x < canvas.width + 180; x += 84) {
+      ctx.beginPath();
+      ctx.roundRect(x, horizon - 30, 20, canvas.height - horizon + 40, 10);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x + 10, horizon - 44, 42, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    for (let x = -240 - offset; x < canvas.width + 240; x += 180) {
+      ctx.beginPath();
+      ctx.moveTo(x, canvas.height);
+      ctx.lineTo(x + 90, horizon - 78);
+      ctx.lineTo(x + 180, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
 }
 
 function resetAtmosphere() {
@@ -479,6 +673,23 @@ function startGame() {
   quickRetryBtn.classList.add('hidden');
 }
 
+function goHome() {
+  score = 0;
+  pipes.length = 0;
+  particles.length = 0;
+  frameCount = 0;
+  flashAlpha = 0;
+  screenShakeTimer = 0;
+  bird.reset();
+  resetAtmosphere();
+  renderChoiceButtons();
+
+  currentState = STATE.MENU;
+  startOverlay.classList.remove('hidden');
+  gameOverOverlay.classList.add('hidden');
+  quickRetryBtn.classList.add('hidden');
+}
+
 function triggerGameOver() {
   if (currentState === STATE.GAMEOVER) return;
   sound.playHit();
@@ -510,6 +721,46 @@ function triggerGameOver() {
   }, 400);
 }
 
+function renderChoiceButtons() {
+  birdChoicesEl.innerHTML = '';
+  mapChoicesEl.innerHTML = '';
+
+  BIRD_SKINS.forEach(skin => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `choice-card ${skin.id === selectedBirdId ? 'active' : ''}`;
+    button.setAttribute('aria-pressed', skin.id === selectedBirdId ? 'true' : 'false');
+    button.innerHTML = `
+      <span class="bird-token" style="--token-a:${skin.colors[0]};--token-b:${skin.colors[1]};--token-c:${skin.colors[2]};--token-glow:${skin.glow};"></span>
+      <span class="choice-label">${skin.name}</span>
+    `;
+    button.addEventListener('click', () => {
+      selectedBirdId = skin.id;
+      localStorage.setItem('flappy_selected_bird', selectedBirdId);
+      renderChoiceButtons();
+    });
+    birdChoicesEl.appendChild(button);
+  });
+
+  MAP_THEMES.forEach(theme => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `choice-card ${theme.id === selectedMapId ? 'active' : ''}`;
+    button.setAttribute('aria-pressed', theme.id === selectedMapId ? 'true' : 'false');
+    button.innerHTML = `
+      <span class="map-token" style="--token-a:${theme.sky[0]};--token-b:${theme.sky[1]};--token-c:${theme.sky[2]};--token-glow:${theme.pipe[1]};"></span>
+      <span class="choice-label">${theme.name}</span>
+    `;
+    button.addEventListener('click', () => {
+      selectedMapId = theme.id;
+      localStorage.setItem('flappy_selected_map', selectedMapId);
+      resetAtmosphere();
+      renderChoiceButtons();
+    });
+    mapChoicesEl.appendChild(button);
+  });
+}
+
 // Event Listeners
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') {
@@ -525,6 +776,7 @@ canvas.addEventListener('pointerdown', (e) => {
 
 startBtn.addEventListener('click', startGame);
 restartBtn.addEventListener('click', startGame);
+homeBtn.addEventListener('click', goHome);
 quickRetryBtn.addEventListener('click', startGame);
 
 audioToggleBtn.addEventListener('click', () => {
@@ -534,6 +786,7 @@ audioToggleBtn.addEventListener('click', () => {
 });
 
 // Start Render Engine
+renderChoiceButtons();
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 requestAnimationFrame(gameLoop);
