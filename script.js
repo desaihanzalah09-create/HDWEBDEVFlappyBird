@@ -69,6 +69,13 @@ const ctx = canvas.getContext('2d');
 
 const sound = new SoundController();
 
+const TARGET_FPS = 60;
+const FRAME_DURATION = 1000 / TARGET_FPS;
+const MAX_DELTA_MS = 100;
+const PIPE_SPAWN_INTERVAL_MS = 1500;
+let lastFrameTime = 0;
+let pipeSpawnTimer = 0;
+
 // DOM Overlays
 const startOverlay = document.getElementById('startOverlay');
 const gameOverOverlay = document.getElementById('gameOverOverlay');
@@ -82,6 +89,8 @@ const mapChoicesEl = document.getElementById('mapChoices');
 const finalScoreEl = document.getElementById('finalScore');
 const bestScoreEl = document.getElementById('bestScore');
 const hudBestScoreEl = document.getElementById('hudBestScore');
+const hudCoinCountEl = document.getElementById('hudCoinCount');
+const powerupTrayEl = document.getElementById('powerupTray');
 const medalSlotEl = document.getElementById('medalSlot');
 
 // Game State Constants
@@ -90,13 +99,59 @@ let currentState = STATE.MENU;
 
 let score = 0;
 let highScore = parseInt(localStorage.getItem('flappy_best_score')) || 0;
+let coinCount = parseInt(localStorage.getItem('flappy_coin_count')) || 0;
 let frameCount = 0;
 let screenShakeTimer = 0;
 let flashAlpha = 0;
 let worldSpeed = 2.5;
 let pipeGap = 150;
+let viewportWidth = window.innerWidth;
+let viewportHeight = window.innerHeight;
+let shieldBreakGraceTimer = 0;
+let powerupHudSignature = '';
 
 hudBestScoreEl.textContent = highScore;
+hudCoinCountEl.textContent = coinCount;
+
+const POWERUP_DURATION_MS = 5000;
+const MINI_SCALE = 0.6;
+const SLOW_MO_SPEED_SCALE = 0.5;
+const activePowerups = {
+  shield: 0,
+  slowMo: 0,
+  mini: 0
+};
+
+const COLLECTIBLE_TYPES = {
+  coin: {
+    icon: '🪙',
+    color: '#facc15',
+    glow: '#f59e0b',
+    radius: 13,
+    weight: 0.58
+  },
+  shield: {
+    icon: '🛡️',
+    color: '#67e8f9',
+    glow: '#22d3ee',
+    radius: 14,
+    weight: 0.14
+  },
+  slowMo: {
+    icon: '⏱️',
+    color: '#c4b5fd',
+    glow: '#8b5cf6',
+    radius: 14,
+    weight: 0.14
+  },
+  mini: {
+    icon: '🍄',
+    color: '#86efac',
+    glow: '#22c55e',
+    radius: 14,
+    weight: 0.14
+  }
+};
 
 const BIRD_SKINS = [
   {
@@ -227,13 +282,29 @@ function getSelectedMap() {
   return MAP_THEMES.find(theme => theme.id === selectedMapId) || MAP_THEMES[0];
 }
 
+function getBirdRadius() {
+  return bird.radius * (activePowerups.mini > 0 ? MINI_SCALE : 1);
+}
+
+function getWorldSpeedScale() {
+  return activePowerups.slowMo > 0 ? SLOW_MO_SPEED_SCALE : 1;
+}
+
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  bird.x = Math.max(84, Math.min(150, canvas.width * 0.18));
-  bird.radius = Math.max(13, Math.min(20, canvas.width * 0.026));
-  pipeGap = Math.max(150, Math.min(230, canvas.height * 0.26));
-  worldSpeed = Math.max(2.5, Math.min(4.2, canvas.width * 0.003));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  viewportWidth = window.innerWidth;
+  viewportHeight = window.innerHeight;
+
+  canvas.width = Math.round(viewportWidth * dpr);
+  canvas.height = Math.round(viewportHeight * dpr);
+  canvas.style.width = `${viewportWidth}px`;
+  canvas.style.height = `${viewportHeight}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  bird.x = Math.max(84, Math.min(150, viewportWidth * 0.18));
+  bird.radius = Math.max(13, Math.min(20, viewportWidth * 0.026));
+  pipeGap = Math.max(150, Math.min(230, viewportHeight * 0.26));
+  worldSpeed = Math.max(2.5, Math.min(4.2, viewportWidth * 0.003));
   resetAtmosphere();
 }
 
@@ -247,31 +318,44 @@ const bird = {
   jump: -7.5,
   rotation: 0,
   reset() {
-    this.y = canvas.height * 0.45;
+    this.y = viewportHeight * 0.45;
     this.velocity = 0;
     this.rotation = 0;
   },
   flap() {
     this.velocity = this.jump;
     sound.playJump();
-    createParticles(this.x - this.radius, this.y + 4, 10, getSelectedBird().trail, 1.2);
+    createParticles(this.x - getBirdRadius(), this.y + 4, 10, getSelectedBird().trail, 1.2);
   },
-  update() {
-    this.velocity += this.gravity;
-    this.y += this.velocity;
+  update(dtScale) {
+    this.velocity += this.gravity * dtScale;
+    this.y += this.velocity * dtScale;
 
     // Smooth Rotation
     if (this.velocity < 0) {
-      this.rotation = Math.max(-0.4, this.rotation - 0.08);
+      this.rotation = Math.max(-0.4, this.rotation - 0.08 * dtScale);
     } else {
-      this.rotation = Math.min(0.6, this.rotation + 0.04);
+      this.rotation = Math.min(0.6, this.rotation + 0.04 * dtScale);
     }
   },
   draw() {
     const skin = getSelectedBird();
+    const radius = getBirdRadius();
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rotation);
+
+    if (activePowerups.shield > 0) {
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = COLLECTIBLE_TYPES.shield.glow;
+      ctx.strokeStyle = COLLECTIBLE_TYPES.shield.color;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.82;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 1.75, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
 
     // Glow Effect
     ctx.shadowBlur = 18;
@@ -280,45 +364,45 @@ const bird = {
     ctx.globalAlpha = 0.26;
     ctx.fillStyle = skin.glow;
     ctx.beginPath();
-    ctx.ellipse(-10, 2, this.radius * 1.9, this.radius * 0.9, 0, 0, Math.PI * 2);
+    ctx.ellipse(-10, 2, radius * 1.9, radius * 0.9, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
     // Body Gradient
-    const grad = ctx.createLinearGradient(-this.radius, -this.radius, this.radius, this.radius);
+    const grad = ctx.createLinearGradient(-radius, -radius, radius, radius);
     grad.addColorStop(0, skin.colors[0]);
     grad.addColorStop(0.5, skin.colors[1]);
     grad.addColorStop(1, skin.colors[2]);
 
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = skin.wing;
     ctx.globalAlpha = 0.8;
     ctx.beginPath();
-    ctx.ellipse(-this.radius * 0.35, this.radius * 0.16, this.radius * 0.5, this.radius * 0.28, -0.35, 0, Math.PI * 2);
+    ctx.ellipse(-radius * 0.35, radius * 0.16, radius * 0.5, radius * 0.28, -0.35, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
 
     // Eye
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(this.radius * 0.42, -this.radius * 0.3, this.radius * 0.27, 0, Math.PI * 2);
+    ctx.arc(radius * 0.42, -radius * 0.3, radius * 0.27, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
-    ctx.arc(this.radius * 0.48, -this.radius * 0.3, this.radius * 0.13, 0, Math.PI * 2);
+    ctx.arc(radius * 0.48, -radius * 0.3, radius * 0.13, 0, Math.PI * 2);
     ctx.fill();
 
     // Beak
     ctx.fillStyle = skin.beak;
     ctx.beginPath();
-    ctx.moveTo(this.radius * 0.72, this.radius * 0.15);
-    ctx.lineTo(this.radius * 1.45, this.radius * 0.32);
-    ctx.lineTo(this.radius * 0.72, this.radius * 0.52);
+    ctx.moveTo(radius * 0.72, radius * 0.15);
+    ctx.lineTo(radius * 1.45, radius * 0.32);
+    ctx.lineTo(radius * 0.72, radius * 0.52);
     ctx.closePath();
     ctx.fill();
 
@@ -329,29 +413,63 @@ const bird = {
 // Pipe Array & Settings
 const pipes = [];
 const pipeWidth = 52;
+const collectibles = [];
 
 function spawnPipes() {
-  const minTop = Math.max(70, canvas.height * 0.1);
-  const maxTop = canvas.height - pipeGap - Math.max(130, canvas.height * 0.18);
+  const minTop = Math.max(70, viewportHeight * 0.1);
+  const maxTop = viewportHeight - pipeGap - Math.max(130, viewportHeight * 0.18);
   const topHeight = Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
-
-  pipes.push({
-    x: canvas.width,
-    width: Math.max(58, Math.min(86, canvas.width * 0.075)),
+  const width = Math.max(58, Math.min(86, viewportWidth * 0.075));
+  const pipe = {
+    x: viewportWidth,
+    width: width,
     topHeight: topHeight,
     bottomY: topHeight + pipeGap,
-    passed: false
+    passed: false,
+    shieldBypassed: false
+  };
+
+  pipes.push(pipe);
+  maybeSpawnCollectible(pipe);
+}
+
+function maybeSpawnCollectible(pipe) {
+  if (Math.random() > 0.78) return;
+
+  const type = chooseCollectibleType();
+  const gapPadding = Math.max(28, getBirdRadius() + COLLECTIBLE_TYPES[type].radius + 8);
+  const yMin = pipe.topHeight + gapPadding;
+  const yMax = pipe.bottomY - gapPadding;
+  const y = yMin >= yMax ? pipe.topHeight + pipeGap / 2 : Math.random() * (yMax - yMin) + yMin;
+
+  collectibles.push({
+    type,
+    x: pipe.x + pipe.width / 2,
+    y,
+    radius: COLLECTIBLE_TYPES[type].radius,
+    wobbleSeed: Math.random() * Math.PI * 2,
+    collected: false
   });
 }
 
-function updatePipes() {
-  if (frameCount % 90 === 0) {
+function chooseCollectibleType() {
+  let roll = Math.random();
+  for (const [type, config] of Object.entries(COLLECTIBLE_TYPES)) {
+    roll -= config.weight;
+    if (roll <= 0) return type;
+  }
+  return 'coin';
+}
+
+function updatePipes(dtScale) {
+  if (pipeSpawnTimer >= PIPE_SPAWN_INTERVAL_MS) {
     spawnPipes();
+    pipeSpawnTimer -= PIPE_SPAWN_INTERVAL_MS;
   }
 
   for (let i = pipes.length - 1; i >= 0; i--) {
     const p = pipes[i];
-    p.x -= worldSpeed;
+    p.x -= worldSpeed * getWorldSpeedScale() * dtScale;
 
     // Score Tracking
     if (!p.passed && p.x + p.width < bird.x) {
@@ -363,12 +481,13 @@ function updatePipes() {
     }
 
     // Collision Detection
-    const inXBounds = bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + p.width;
-    const hitTopPipe = bird.y - bird.radius < p.topHeight;
-    const hitBottomPipe = bird.y + bird.radius > p.bottomY;
+    const birdRadius = getBirdRadius();
+    const inXBounds = bird.x + birdRadius > p.x && bird.x - birdRadius < p.x + p.width;
+    const hitTopPipe = bird.y - birdRadius < p.topHeight;
+    const hitBottomPipe = bird.y + birdRadius > p.bottomY;
 
-    if (inXBounds && (hitTopPipe || hitBottomPipe)) {
-      triggerGameOver();
+    if (inXBounds && (hitTopPipe || hitBottomPipe) && !p.shieldBypassed) {
+      handlePipeCollision(p);
     }
 
     // Remove Offscreen Pipes
@@ -376,6 +495,162 @@ function updatePipes() {
       pipes.splice(i, 1);
     }
   }
+}
+
+function handlePipeCollision(pipe) {
+  if (activePowerups.shield > 0) {
+    activePowerups.shield = 0;
+    shieldBreakGraceTimer = 700;
+    pipe.shieldBypassed = true;
+    screenShakeTimer = 8;
+    flashAlpha = 0.24;
+    sound.playHit();
+    createParticles(bird.x, bird.y, 30, '#67e8f9', 2);
+    updatePowerupHud();
+    return;
+  }
+
+  if (shieldBreakGraceTimer <= 0) {
+    triggerGameOver();
+  }
+}
+
+function updateCollectibles(dtScale) {
+  const speed = worldSpeed * getWorldSpeedScale() * dtScale;
+
+  for (let i = collectibles.length - 1; i >= 0; i--) {
+    const item = collectibles[i];
+    item.x -= speed;
+
+    const pulseY = Math.sin(frameCount * 0.09 + item.wobbleSeed) * 4;
+    const dx = bird.x - item.x;
+    const dy = bird.y - (item.y + pulseY);
+    const collisionRadius = getBirdRadius() + item.radius;
+
+    if (dx * dx + dy * dy <= collisionRadius * collisionRadius) {
+      collectItem(item);
+      collectibles.splice(i, 1);
+      continue;
+    }
+
+    if (item.x + item.radius < 0) {
+      collectibles.splice(i, 1);
+    }
+  }
+}
+
+function collectItem(item) {
+  const config = COLLECTIBLE_TYPES[item.type];
+  sound.playScore();
+  createParticles(item.x, item.y, 18, config.color, 1.5);
+
+  if (item.type === 'coin') {
+    coinCount++;
+    localStorage.setItem('flappy_coin_count', coinCount);
+    hudCoinCountEl.textContent = coinCount;
+    return;
+  }
+
+  if (item.type === 'shield') {
+    activePowerups.shield = 1;
+  } else if (item.type === 'slowMo') {
+    activePowerups.slowMo = POWERUP_DURATION_MS;
+  } else if (item.type === 'mini') {
+    activePowerups.mini = POWERUP_DURATION_MS;
+  }
+
+  flashAlpha = Math.max(flashAlpha, 0.14);
+  updatePowerupHud();
+}
+
+function drawCollectibles() {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '700 18px Outfit, system-ui, sans-serif';
+
+  collectibles.forEach(item => {
+    const config = COLLECTIBLE_TYPES[item.type];
+    const y = item.y + Math.sin(frameCount * 0.09 + item.wobbleSeed) * 4;
+    const spinScale = 0.82 + Math.sin(frameCount * 0.12 + item.wobbleSeed) * 0.18;
+
+    ctx.save();
+    ctx.translate(item.x, y);
+    ctx.scale(spinScale, 1);
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = config.glow;
+    ctx.fillStyle = config.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(config.icon, 0, 1);
+    ctx.restore();
+  });
+
+  ctx.restore();
+}
+
+function updatePowerupTimers(deltaMs) {
+  let changed = false;
+
+  ['slowMo', 'mini'].forEach(type => {
+    if (activePowerups[type] > 0) {
+      activePowerups[type] = Math.max(0, activePowerups[type] - deltaMs);
+      changed = true;
+    }
+  });
+
+  if (shieldBreakGraceTimer > 0) {
+    shieldBreakGraceTimer = Math.max(0, shieldBreakGraceTimer - deltaMs);
+  }
+
+  if (changed) {
+    updatePowerupHud();
+  }
+}
+
+function updatePowerupHud() {
+  const activeItems = [];
+
+  if (activePowerups.shield > 0) {
+    activeItems.push({ icon: COLLECTIBLE_TYPES.shield.icon, label: '1 hit' });
+  }
+
+  if (activePowerups.slowMo > 0) {
+    activeItems.push({
+      icon: COLLECTIBLE_TYPES.slowMo.icon,
+      label: `${Math.ceil(activePowerups.slowMo / 1000)}s`
+    });
+  }
+
+  if (activePowerups.mini > 0) {
+    activeItems.push({
+      icon: COLLECTIBLE_TYPES.mini.icon,
+      label: `${Math.ceil(activePowerups.mini / 1000)}s`
+    });
+  }
+
+  const signature = activeItems.map(item => `${item.icon}:${item.label}`).join('|');
+  if (signature === powerupHudSignature) return;
+
+  powerupHudSignature = signature;
+  powerupTrayEl.innerHTML = activeItems.map(item => `
+    <div class="powerup-timer">
+      <span>${item.icon}</span>
+      <strong>${item.label}</strong>
+    </div>
+  `).join('');
+}
+
+function clearPowerups() {
+  activePowerups.shield = 0;
+  activePowerups.slowMo = 0;
+  activePowerups.mini = 0;
+  shieldBreakGraceTimer = 0;
+  updatePowerupHud();
 }
 
 function drawPipes() {
@@ -398,7 +673,7 @@ function drawPipes() {
     roundRect(p.x - 5, p.topHeight - capHeight, p.width + 10, capHeight, 8);
 
     // Bottom Pipe
-    const bottomHeight = canvas.height - p.bottomY;
+    const bottomHeight = viewportHeight - p.bottomY;
     ctx.fillStyle = topGrad;
     roundRect(p.x, p.bottomY, p.width, bottomHeight + 8, 10);
 
@@ -432,14 +707,14 @@ function createParticles(x, y, count, color, force = 1) {
   }
 }
 
-function updateAndDrawParticles() {
+function updateAndDrawParticles(dtScale) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.025;
-    p.spin += 0.12;
-    p.alpha -= 0.03;
+    p.x += p.vx * dtScale;
+    p.y += p.vy * dtScale;
+    p.vy += 0.025 * dtScale;
+    p.spin += 0.12 * dtScale;
+    p.alpha -= 0.03 * dtScale;
 
     if (p.alpha <= 0) {
       particles.splice(i, 1);
@@ -462,37 +737,37 @@ function updateAndDrawParticles() {
 
 // Parallax Background
 const stars = Array.from({ length: 90 }, () => ({
-  x: Math.random() * canvas.width,
-  y: Math.random() * canvas.height,
+  x: Math.random() * viewportWidth,
+  y: Math.random() * viewportHeight,
   size: Math.random() * 2.2 + 0.8,
   speed: Math.random() * 0.75 + 0.15,
   alpha: Math.random() * 0.55 + 0.25
 }));
 const clouds = Array.from({ length: 8 }, () => ({
-  x: Math.random() * canvas.width,
-  y: Math.random() * canvas.height * 0.65,
+  x: Math.random() * viewportWidth,
+  y: Math.random() * viewportHeight * 0.65,
   width: Math.random() * 130 + 90,
   speed: Math.random() * 0.18 + 0.08,
   alpha: Math.random() * 0.08 + 0.04
 }));
 
-function drawBackground() {
+function drawBackground(dtScale) {
   const theme = getSelectedMap();
-  const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  const sky = ctx.createLinearGradient(0, 0, 0, viewportHeight);
   sky.addColorStop(0, theme.sky[0]);
   sky.addColorStop(0.52, theme.sky[1]);
   sky.addColorStop(1, theme.sky[2]);
   ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, viewportWidth, viewportHeight);
 
   drawMapLandmarks(theme);
 
   clouds.forEach(cloud => {
     if (currentState === STATE.PLAYING) {
-      cloud.x -= cloud.speed * worldSpeed;
+      cloud.x -= cloud.speed * worldSpeed * dtScale;
       if (cloud.x + cloud.width < 0) {
-        cloud.x = canvas.width + cloud.width;
-        cloud.y = Math.random() * canvas.height * 0.65;
+        cloud.x = viewportWidth + cloud.width;
+        cloud.y = Math.random() * viewportHeight * 0.65;
       }
     }
     ctx.save();
@@ -506,10 +781,10 @@ function drawBackground() {
 
   stars.forEach(star => {
     if (currentState === STATE.PLAYING) {
-      star.x -= star.speed;
+      star.x -= star.speed * dtScale;
       if (star.x < 0) {
-        star.x = canvas.width;
-        star.y = Math.random() * canvas.height;
+        star.x = viewportWidth;
+        star.y = Math.random() * viewportHeight;
       }
     }
     ctx.globalAlpha = star.alpha + Math.sin((frameCount + star.x) * 0.025) * 0.15;
@@ -520,16 +795,16 @@ function drawBackground() {
   });
   ctx.globalAlpha = 1;
 
-  const groundHeight = Math.max(78, canvas.height * 0.12);
-  const ground = ctx.createLinearGradient(0, canvas.height - groundHeight, 0, canvas.height);
+  const groundHeight = Math.max(78, viewportHeight * 0.12);
+  const ground = ctx.createLinearGradient(0, viewportHeight - groundHeight, 0, viewportHeight);
   ground.addColorStop(0, theme.ground[0]);
   ground.addColorStop(1, theme.ground[1]);
   ctx.fillStyle = ground;
-  ctx.fillRect(0, canvas.height - groundHeight, canvas.width, groundHeight);
+  ctx.fillRect(0, viewportHeight - groundHeight, viewportWidth, groundHeight);
 }
 
 function drawMapLandmarks(theme) {
-  const horizon = canvas.height * 0.72;
+  const horizon = viewportHeight * 0.72;
   const offset = currentState === STATE.PLAYING ? (frameCount * worldSpeed * 0.22) % 220 : 0;
 
   ctx.save();
@@ -537,39 +812,39 @@ function drawMapLandmarks(theme) {
   ctx.fillStyle = theme.ridge;
 
   if (theme.id === 'canyon') {
-    for (let x = -260 - offset; x < canvas.width + 260; x += 220) {
+    for (let x = -260 - offset; x < viewportWidth + 260; x += 220) {
       ctx.beginPath();
-      ctx.moveTo(x, canvas.height);
+      ctx.moveTo(x, viewportHeight);
       ctx.lineTo(x + 38, horizon - 48);
       ctx.lineTo(x + 76, horizon - 72);
-      ctx.lineTo(x + 128, canvas.height);
+      ctx.lineTo(x + 128, viewportHeight);
       ctx.closePath();
       ctx.fill();
     }
   } else if (theme.id === 'glacier') {
-    for (let x = -220 - offset; x < canvas.width + 220; x += 180) {
+    for (let x = -220 - offset; x < viewportWidth + 220; x += 180) {
       ctx.beginPath();
-      ctx.moveTo(x, canvas.height);
+      ctx.moveTo(x, viewportHeight);
       ctx.lineTo(x + 84, horizon - 112);
-      ctx.lineTo(x + 168, canvas.height);
+      ctx.lineTo(x + 168, viewportHeight);
       ctx.closePath();
       ctx.fill();
     }
   } else if (theme.id === 'jungle') {
-    for (let x = -180 - offset; x < canvas.width + 180; x += 84) {
+    for (let x = -180 - offset; x < viewportWidth + 180; x += 84) {
       ctx.beginPath();
-      ctx.roundRect(x, horizon - 30, 20, canvas.height - horizon + 40, 10);
+      ctx.roundRect(x, horizon - 30, 20, viewportHeight - horizon + 40, 10);
       ctx.fill();
       ctx.beginPath();
       ctx.arc(x + 10, horizon - 44, 42, 0, Math.PI * 2);
       ctx.fill();
     }
   } else {
-    for (let x = -240 - offset; x < canvas.width + 240; x += 180) {
+    for (let x = -240 - offset; x < viewportWidth + 240; x += 180) {
       ctx.beginPath();
-      ctx.moveTo(x, canvas.height);
+      ctx.moveTo(x, viewportHeight);
       ctx.lineTo(x + 90, horizon - 78);
-      ctx.lineTo(x + 180, canvas.height);
+      ctx.lineTo(x + 180, viewportHeight);
       ctx.closePath();
       ctx.fill();
     }
@@ -580,12 +855,12 @@ function drawMapLandmarks(theme) {
 
 function resetAtmosphere() {
   stars.forEach(star => {
-    star.x = Math.random() * canvas.width;
-    star.y = Math.random() * canvas.height;
+    star.x = Math.random() * viewportWidth;
+    star.y = Math.random() * viewportHeight;
   });
   clouds.forEach(cloud => {
-    cloud.x = Math.random() * canvas.width;
-    cloud.y = Math.random() * canvas.height * 0.65;
+    cloud.x = Math.random() * viewportWidth;
+    cloud.y = Math.random() * viewportHeight * 0.65;
   });
 }
 
@@ -597,22 +872,26 @@ function drawScore() {
   ctx.textAlign = 'center';
   ctx.shadowColor = 'rgba(0,0,0,0.5)';
   ctx.shadowBlur = 6;
-  ctx.fillText(score, canvas.width / 2, 60);
+  ctx.fillText(score, viewportWidth / 2, 60);
   ctx.shadowBlur = 0;
 }
 
-function drawFlash() {
+function drawFlash(dtScale) {
   if (flashAlpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = flashAlpha;
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, viewportWidth, viewportHeight);
   ctx.restore();
-  flashAlpha *= 0.86;
+  flashAlpha *= Math.pow(0.86, dtScale);
 }
 
 // Game Loop
-function gameLoop() {
+function gameLoop(timestamp = performance.now()) {
+  const deltaMs = lastFrameTime ? Math.min(timestamp - lastFrameTime, MAX_DELTA_MS) : FRAME_DURATION;
+  const dtScale = deltaMs / FRAME_DURATION;
+  lastFrameTime = timestamp;
+
   ctx.save();
 
   // Screen Shake Effect
@@ -620,30 +899,35 @@ function gameLoop() {
     const dx = (Math.random() - 0.5) * 10;
     const dy = (Math.random() - 0.5) * 10;
     ctx.translate(dx, dy);
-    screenShakeTimer--;
+    screenShakeTimer -= dtScale;
   }
 
-  drawBackground();
+  drawBackground(dtScale);
 
   if (currentState === STATE.PLAYING) {
-    bird.update();
-    updatePipes();
+    pipeSpawnTimer += deltaMs * getWorldSpeedScale();
+    updatePowerupTimers(deltaMs);
+    bird.update(dtScale);
+    updatePipes(dtScale);
+    updateCollectibles(dtScale);
 
     // Ground & Ceiling Collisions
-    if (bird.y + bird.radius >= canvas.height || bird.y - bird.radius <= 0) {
+    const birdRadius = getBirdRadius();
+    if (bird.y + birdRadius >= viewportHeight || bird.y - birdRadius <= 0) {
       triggerGameOver();
     }
   }
 
   drawPipes();
+  drawCollectibles();
   bird.draw();
-  updateAndDrawParticles();
+  updateAndDrawParticles(dtScale);
   drawScore();
-  drawFlash();
+  drawFlash(dtScale);
 
   ctx.restore();
 
-  frameCount++;
+  frameCount += dtScale;
   requestAnimationFrame(gameLoop);
 }
 
@@ -662,9 +946,12 @@ function handleAction() {
 function startGame() {
   score = 0;
   pipes.length = 0;
+  collectibles.length = 0;
   particles.length = 0;
   frameCount = 0;
+  pipeSpawnTimer = PIPE_SPAWN_INTERVAL_MS;
   flashAlpha = 0;
+  clearPowerups();
   bird.reset();
 
   currentState = STATE.PLAYING;
@@ -676,10 +963,13 @@ function startGame() {
 function goHome() {
   score = 0;
   pipes.length = 0;
+  collectibles.length = 0;
   particles.length = 0;
   frameCount = 0;
+  pipeSpawnTimer = 0;
   flashAlpha = 0;
   screenShakeTimer = 0;
+  clearPowerups();
   bird.reset();
   resetAtmosphere();
   renderChoiceButtons();

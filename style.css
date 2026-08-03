@@ -39,11 +39,12 @@ canvas {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));
   left: max(16px, env(safe-area-inset-left));
-  right: max(16px, env(safe-area-inset-right));
+  right: 76px;
   z-index: 10;
   display: flex;
   justify-content: flex-start;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   pointer-events: none;
 }
@@ -66,6 +67,44 @@ canvas {
   color: #ffffff;
   margin-left: 6px;
   font-size: 16px;
+}
+
+.coin-pill {
+  min-width: 112px;
+}
+
+.powerup-tray {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.powerup-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 62px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(8, 17, 29, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.powerup-timer span {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.powerup-timer strong {
+  font-size: 12px;
+  line-height: 1;
 }
 
 /* Audio Toggle Button */
@@ -360,6 +399,26 @@ kbd {
 }
 
 @media (max-width: 430px) {
+  .hud {
+    right: 66px;
+    gap: 8px;
+  }
+
+  .hud-pill {
+    min-width: 78px;
+    padding: 8px 10px;
+  }
+
+  .coin-pill {
+    min-width: 92px;
+  }
+
+  .powerup-timer {
+    min-width: 54px;
+    height: 36px;
+    padding: 0 8px;
+  }
+
   .glass-card {
     padding: 24px 16px;
   }
